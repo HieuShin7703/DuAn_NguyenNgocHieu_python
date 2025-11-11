@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dữ liệu & Phân tích</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .navbar {
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .table-hover tbody tr:hover {
+      background-color: #e2f0ff;
+      cursor: pointer;
+    }
+    .filter-input {
+      transition: all 0.3s;
+    }
+    .filter-input:focus {
+      border-color: #4facfe;
+      box-shadow: 0 0 8px rgba(0,127,255,0.2);
+    }
+    .btn-primary {
+      background-color: #4facfe;
+      border: none;
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      background-color: #00f2fe;
+    }
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h4 {
+      margin-bottom: 1rem;
+      font-weight: 600;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="dashboard.html"><i class="fas fa-database me-2"></i>Crawler</a>
+  </div>
+</nav>
+
+<div class="container my-4">
+  <h4>Products</h4>
+  <div class="row mb-3">
+    <div class="col-md-3"><input id="searchKeyword" class="form-control filter-input" placeholder="Tìm tên"></div>
+    <div class="col-md-3"><input id="minPrice" class="form-control filter-input" placeholder="Min price"></div>
+    <div class="col-md-3"><input id="maxPrice" class="form-control filter-input" placeholder="Max price"></div>
+    <div class="col-md-3"><button id="filterBtn" class="btn btn-primary w-100"><i class="fas fa-filter me-2"></i>Lọc</button></div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body table-responsive">
+      <table class="table table-striped table-hover" id="productsTable">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Shop</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h5>Lịch sử giá sản phẩm</h5>
+      <canvas id="priceChart" height="120"></canvas>
+    </div>
+  </div>
+</div>
+
+
+<script>
+let chart = null;
+function loadProducts(filters = {}){
+  $.get('../api/products.php', filters).done(function(products){
+    const tbody = $('#productsTable tbody').empty();
+    products.forEach((p,i)=>{
+      tbody.append(`<tr>
+        <td>${i+1}</td>
+        <td>${p.name}</td>
+        <td>${p.current_price}</td>
+        <td>${p.shop_id || '-'}</td>
+        <td>
+          <button class="btn btn-sm btn-info viewHistory" data-id="${p.product_id}">History</button>
+          <a href="${p.product_url}" target="_blank" class="btn btn-sm btn-outline-secondary">Open</a>
+        </td>
+      </tr>`);
+    });
+  });
+}
+
+$(function(){
+  loadProducts();
+
+  $('#filterBtn').on('click', function(){
+    const filters = {};
+    const kw = $('#searchKeyword').val().trim(); if(kw) filters.keyword = kw;
+    const minP = $('#minPrice').val().trim(); if(minP) filters.minPrice = minP;
+    const maxP = $('#maxPrice').val().trim(); if(maxP) filters.maxPrice = maxP;
+    loadProducts(filters);
+  });
+
+  $(document).on('click','.viewHistory', function(){
+    const id = $(this).data('id');
+    $.get('../api/product_history.php', { product_id: id }).done(function(hist){
+      // hist expected: array ordered by scraped_at ASC (per your API)
+      const labels = hist.map(h => h.scraped_at || h.created_at || '');
+      const prices = hist.map(h => parseFloat(h.price || 0));
+      if(chart) chart.destroy();
+      const ctx = document.getElementById('priceChart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label: 'Price', data: prices, tension: 0.2 }]
+        },
+        options: { responsive: true, plugins: { legend: { display: true } } }
+      });
+    });
+  });
+});
+</script>
+</body>
+</html>
